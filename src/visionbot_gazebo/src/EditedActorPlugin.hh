@@ -36,7 +36,7 @@
 #include <geometry_msgs/Twist.h>
 #include <thread>
 #include "ros/subscribe_options.h"
-
+#include <tf/transform_broadcaster.h>
 
 
 namespace gazebo

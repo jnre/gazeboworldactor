@@ -333,12 +333,24 @@ void EditedActorPlugin::OnUpdate(const common::UpdateInfo &_info)
   // pose.Pos().Y(std::max(-10.0, std::min(2.0, pose.Pos().Y())));
   pose.Pos().Z(1.0138);
 
+  //broadcast transform
+
   // Distance traveled is used to coordinate motion with the walking
   // animation
   double distanceTraveled = (pose.Pos() -
       this->actor->WorldPose().Pos()).Length();
 
+  static tf::TransformBroadcaster br;
+  tf::Transform transform;
+  tf::Vector3 origin;
+  origin.setValue(pose.Pos().X(), pose.Pos().Y(), pose.Pos().Z());
+  transform.setOrigin(origin);
+  tf::Quaternion q; 
+  q.setRPY(pose.Rot().X(),pose.Rot().Y(),pose.Rot().Z());
+  transform.setRotation(q);
+  br.sendTransform(tf::StampedTransform(transform,ros::Time::now(),"map",this->actor->GetName()));
   
+
   this->actor->SetWorldPose(pose, false, false);
   this->actor->SetScriptTime(this->actor->ScriptTime() +
     (distanceTraveled * this->animationFactor));

@@ -28,8 +28,9 @@
   <arg name="ns_animated0" value="animated_box0"/>
   <group ns ="$(arg ns_animated0)">
     <node name="move_base" pkg="move_base" type="move_base" output="screen">
-    <!-- <param name="base_link" value="chassis"> -->
-    <rosparam file="$(find visionbot_gazebo)/include/move_base_config0.yaml" command="load" />
+
+    <!-- <param name="base_link" value="chassis1"> -->
+    <rosparam file="$(find visionbot_gazebo)/include/move_base_config.yaml" command="load" />
     <!-- <remap from="map" to="animated_box0/map"/> -->
     <!-- <remap from="base_scan" to="visionbot/laser/scan"/>
     <param name="move_base/DWAPlannerROS/yaw_goal_tolerance" value="1.0"/>
@@ -40,7 +41,7 @@
   <arg name="ns_animated1" value="animated_box1"/>
   <group ns ="$(arg ns_animated1)">
     <node name="move_base" pkg="move_base" type="move_base" output="screen">
-    <rosparam file="$(find visionbot_gazebo)/include/move_base_config1.yaml" command="load" />>
+    <rosparam file="$(find visionbot_gazebo)/include/move_base_config.yaml" command="load" />
     </node>
   </group>
 
