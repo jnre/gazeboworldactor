@@ -35,6 +35,7 @@
 #include <sdf/sdf.hh>
 #include <std_srvs/Empty.h>
 #include <costmap_2d/costmap_2d_ros.h>
+#include <mutex>
 
 namespace gazebo {
 
@@ -48,7 +49,7 @@ class OccupancyMapFromWorld : public ModelPlugin {
   {
     ROS_INFO_NAMED(name_, "occupancy map plugin started");
   }
-  virtual ~OccupancyMapFromWorld();
+  ~OccupancyMapFromWorld();
 
 
 
@@ -57,10 +58,10 @@ class OccupancyMapFromWorld : public ModelPlugin {
   /// \brief Load the plugin.
   /// \param[in] _parent Pointer to the world that loaded this plugin.
   /// \param[in] _sdf SDF element that describes the plugin.
-  void Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf);
+  virtual void Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf);
 
   bool worldCellIntersection(const ignition::math::Vector3d& cell_center, const double cell_length,
-                             gazebo::physics::RayShapePtr ray);
+                             gazebo::physics::RayShapePtr &ray);
 
 //  void FloodFill(const math::Vector3& seed_point,
 //                 const math::Vector3& bounding_box_origin,
@@ -70,20 +71,21 @@ class OccupancyMapFromWorld : public ModelPlugin {
   /*! \brief
   */
   void CreateOccupancyMap();
-
-  static void cell2world(unsigned int cell_x, unsigned int cell_y,
+  // void PutRangeData(common::Time &_updateTime);
+  // void OnNewLaserScans();
+  void cell2world(unsigned int cell_x, unsigned int cell_y,
                          double map_size_x, double map_size_y, double map_resolution,
                          double& world_x, double &world_y);
 
-  static void world2cell(double world_x, double world_y,
+  void world2cell(double world_x, double world_y,
                          double map_size_x, double map_size_y, double map_resolution,
                          unsigned int& cell_x, unsigned int& cell_y);
 
-  static bool cell2index(int cell_x, int cell_y,
+  bool cell2index(int cell_x, int cell_y,
                          unsigned int cell_size_x, unsigned int cell_size_y,
                          unsigned int& map_index);
 
-  static bool index2cell(int index, unsigned int cell_size_x, unsigned int cell_size_y,
+  bool index2cell(int index, unsigned int cell_size_x, unsigned int cell_size_y,
                          unsigned int& cell_x, unsigned int& cell_y);
 
  private:
@@ -93,11 +95,18 @@ class OccupancyMapFromWorld : public ModelPlugin {
   /// \brief Pointer to the parent actor.
   private: physics::ActorPtr actor_;
 
+  /// \brief List of connections
+  private: std::vector<event::ConnectionPtr> connections;
+
+  /// \brief Function that is called every update cycle.
+  /// \param[in] _info Timing information
+  //private: void OnUpdate(const common::UpdateInfo &_info);
+
   physics::WorldPtr world_;
-  ros::NodeHandle nh_;
-  ros::ServiceServer map_service_;
+  //ros::NodeHandle nh_;
+  //ros::ServiceServer map_service_;
   ros::Publisher map_pub_;
-  nav_msgs::OccupancyGrid* occupancy_map_;
+  nav_msgs::OccupancyGrid *occupancy_map_;
   std::string name_;
   double map_resolution_;
   double map_height_;
@@ -105,11 +114,21 @@ class OccupancyMapFromWorld : public ModelPlugin {
   double map_size_y_;
   std::thread mapping_thread;
   void MappingThread();
-  std::mutex target_changed;
+  boost::mutex lock_;
   /// \brief List of models to ignore. Used for vector field
   private: std::vector<std::string> ignoreModels;
   std::string published_mapname;
-
+  ros::NodeHandle* rosnode;
+  void ActorConnect();
+  void ActorDisconnect();
+  int actor_connect = 0;
+  ros::CallbackQueue mapping_queue;
+  event::ConnectionPtr update_connection_;
+  gazebo::physics::RayShapePtr ray;
+  gazebo::physics::PhysicsEnginePtr engine;
+  gazebo::physics::CollisionPtr _collisionPtr;
+  
+  
 };
 
 } // namespace gazebo

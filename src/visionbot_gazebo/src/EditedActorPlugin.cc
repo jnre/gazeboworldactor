@@ -26,6 +26,7 @@
 #include <mutex> 
 
 
+
 using namespace gazebo;
 GZ_REGISTER_MODEL_PLUGIN(EditedActorPlugin)
 
@@ -94,11 +95,11 @@ void EditedActorPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
   //create ros node 
   this->rosNode.reset(new ros::NodeHandle("gazebo"));
 
-  actor_plan = "/" + this->actor->GetName() + "/move_base/make_plan";
+  //request map from move_base
+  actor_plan = "/" + this->actor->GetName() + "/move_base/NavfnROS/make_plan";
   sc = this->rosNode->serviceClient<nav_msgs::GetPlan>(actor_plan);
 
-  // map_gen =this->rosNode->serviceClient<std_srvs::Empty>("/gazebo_2dmap_plugin/generate_map");
-  // "/"+ this->actor->GetName() + "
+  //request path here
   ros::SubscribeOptions so = ros::SubscribeOptions::create<geometry_msgs::Twist>("/"+ this->actor->GetName() + "/target_goal", 1,
     boost::bind(&EditedActorPlugin::cmdvel_callback, this, _1), ros::VoidPtr(), &this->rosQueue);
 
@@ -114,7 +115,7 @@ void EditedActorPlugin::cmdvel_callback(const geometry_msgs::Twist::ConstPtr& cm
   std::cout<<"callback here"<<std::endl;
   x_ = cmd_msg->linear.x;
   y_ = cmd_msg->linear.y;
-  if((this->actor->WorldPose().Pos().X() - x_)> 0.1 || (this->actor->WorldPose().Pos().Y() - y_)>0.1){
+  if(fabs(this->actor->WorldPose().Pos().X() - x_)> 0.1 || fabs(this->actor->WorldPose().Pos().Y() - y_)>0.1){
   
     this->ChooseNewTarget();
   }  
@@ -348,8 +349,8 @@ void EditedActorPlugin::OnUpdate(const common::UpdateInfo &_info)
   tf::Quaternion q; 
   q.setRPY(pose.Rot().X(),pose.Rot().Y(),pose.Rot().Z());
   transform.setRotation(q);
-  br.sendTransform(tf::StampedTransform(transform,ros::Time::now(),"map",this->actor->GetName()));
-  
+  br.sendTransform(tf::StampedTransform(transform,ros::Time::now(),"map",this->actor->GetName()+ "_odom"));
+
 
   this->actor->SetWorldPose(pose, false, false);
   this->actor->SetScriptTime(this->actor->ScriptTime() +

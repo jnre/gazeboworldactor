@@ -139,7 +139,7 @@
         <map_height>0.3</map_height>         <!-- in meters, optional, default 0.3 -->
         <map_size_x>10</map_size_x>          <!-- in meters, optional, default 10 -->
         <map_size_y>10</map_size_y>          <!-- in meters, optional, default 10 -->
-      </plugin>
+      </plugin> 
 
       <skin>
         <!-- <filename>/home/joseph/mybot_ws/src/visionbot_description/meshes/lizv2.dae</filename> -->
@@ -172,7 +172,7 @@
     </model> -->
 
 
-    <!-- <actor name="animated_box1">
+    <actor name="animated_box1">
 
       <plugin name="EditedActor" filename="libEditedActorPlugin.so">
         <pose> 0 -2 1.0138 1.5707 0 1.5707 </pose>
@@ -293,7 +293,7 @@
         <filename>walk.dae</filename>
         <interpolate_x>true</interpolate_x>
       </animation>
-    </actor> -->
+    </actor>
 
 
     <model name='bookshelf'>

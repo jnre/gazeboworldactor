@@ -30,13 +30,22 @@ namespace gazebo {
 
 GZ_REGISTER_MODEL_PLUGIN(OccupancyMapFromWorld)
 
-OccupancyMapFromWorld::~OccupancyMapFromWorld() {}
+OccupancyMapFromWorld::~OccupancyMapFromWorld() {
+
+  this->mapping_queue.clear();
+  this->mapping_queue.disable();
+  this->rosnode->shutdown();
+  this->mapping_thread.join();
+
+  delete this->rosnode;
+}
 
 void OccupancyMapFromWorld::Load(physics::ModelPtr _parent,
                                  sdf::ElementPtr _sdf) {
   if (kPrintOnPluginLoad) {
     gzdbg << __FUNCTION__ << "() called." << std::endl;
   }
+
 
   this->actor_ = boost::dynamic_pointer_cast<physics::Actor>(_parent);
   std::cout<<"entity_name: "<< this->actor_->GetName() << std::endl;
@@ -52,9 +61,30 @@ void OccupancyMapFromWorld::Load(physics::ModelPtr _parent,
   // map_service_ = nh_.advertiseService(
   //       "gazebo_2dmap_plugin/generate_map", &OccupancyMapFromWorld::ServiceCallback, this);
 
-  published_mapname = "/" + this->actor_->GetName() + "/map";
-  map_pub_=nh_.advertise<nav_msgs::OccupancyGrid>(published_mapname,1);
+  //Onupdate loop running in background
+  // this->connections.push_back(event::Events::ConnectWorldUpdateBegin(
+  //         std::bind(&OccupancyMapFromWorld::OnUpdate, this, std::placeholders::_1)));
+  this->world_->SetPhysicsEnabled(false);
 
+  if(!ros::isInitialized()){
+    std::cout<< "ros not initialized"<< std::endl;
+    int argc = 0;
+    char **argv = NULL;
+    ros::init(argc,argv,"gazebo", ros::init_options::NoSigintHandler);
+  }
+  
+  //create ros node
+  this->rosnode = new ros::NodeHandle(this->actor_->GetName());
+
+  this->published_mapname = "/" + this->actor_->GetName() + "/map";
+  ros::AdvertiseOptions pub = ros::AdvertiseOptions::create<nav_msgs::OccupancyGrid>
+  (this->published_mapname,1,boost::bind( &OccupancyMapFromWorld::ActorConnect,this),
+  boost::bind( &OccupancyMapFromWorld::ActorDisconnect,this),ros::VoidPtr(),&this->mapping_queue);
+  
+  
+  // map_pub_=this->rosNode->advertise<nav_msgs::OccupancyGrid>(published_mapname,1);
+
+  
   map_resolution_ = 0.1;
 
   if(_sdf->HasElement("map_resolution"))
@@ -104,20 +134,45 @@ void OccupancyMapFromWorld::Load(physics::ModelPtr _parent,
   //      service_name, &OctomapFromGazeboWorld::ServiceCallback, this);
   //  octomap_publisher_ =
   //      node_handle_.advertise<octomap_msgs::Octomap>(octomap_pub_topic, 1, true);
+  
+  this->map_pub_ = this->rosnode->advertise(pub);
 
   this->mapping_thread = std::thread(std::bind(&OccupancyMapFromWorld::MappingThread,this));
 
+  // this->update_connection_= event::Events::ConnectWorldUpdateBegin(
+  // boost::bind(&OccupancyMapFromWorld::CreateOccupancyMap, this));
+  
+  
+}
+
+void OccupancyMapFromWorld::ActorConnect(){
+  
+  this->actor_connect++;
+  this->world_->SetPhysicsEnabled(true);
+}
+
+void OccupancyMapFromWorld::ActorDisconnect()
+{
+  this->actor_connect--;
+
+  if (this->actor_connect == 0)
+    this->world_->SetPhysicsEnabled(false);
 }
 
 void OccupancyMapFromWorld::MappingThread(){
-  //sleep to load everything first or else bug
+  static const double timeout = 0.01;
   sleep(5);
-  while(this->nh_.ok() && this->world_->IsLoaded())
+  //sleep to load everything first or else bug
+  std::cout<<"inside mappingthread"<<std::endl;
+  while(this->rosnode->ok() && this->world_->IsLoaded())
   {
-    CreateOccupancyMap();
+    
+    this->CreateOccupancyMap();
+    this->mapping_queue.callAvailable(ros::WallDuration(timeout));
     
   }
 }
+
 //bool OctomapFromGazeboWorld::ServiceCallback(
 //    robotino_sim::Octomap::Request& req, robotino_sim::Octomap::Response& res) {
 //  std::cout << "Creating octomap with origin at (" << req.bounding_box_origin.x
@@ -207,16 +262,159 @@ void OccupancyMapFromWorld::MappingThread(){
 //  }
 //}
 
-bool OccupancyMapFromWorld::ServiceCallback(std_srvs::Empty::Request& req,
-                                            std_srvs::Empty::Response& res)
-{
-  CreateOccupancyMap();
-  return true;
+// bool OccupancyMapFromWorld::ServiceCallback(std_srvs::Empty::Request& req,
+//                                             std_srvs::Empty::Response& res)
+// {
+//   CreateOccupancyMap();
+//   return true;
+// }
+void OccupancyMapFromWorld::CreateOccupancyMap(){
+  //TODO map origin different from (0,0)
+  
+  ignition::math::Vector3d map_origin(0,0,map_height_);
+
+  unsigned int cells_size_x = map_size_x_ / map_resolution_;
+  unsigned int cells_size_y = map_size_y_ / map_resolution_;
+  
+  occupancy_map_ = new nav_msgs::OccupancyGrid();
+  occupancy_map_->data.resize(cells_size_x * cells_size_y);
+  //all cells are initially unknown
+  std::fill(occupancy_map_->data.begin(), occupancy_map_->data.end(), -1);
+  occupancy_map_->header.stamp = ros::Time::now();
+  occupancy_map_->header.frame_id = "map"; //TODO map frame
+  occupancy_map_->info.map_load_time = ros::Time(0);
+  occupancy_map_->info.resolution = map_resolution_;
+  occupancy_map_->info.width = cells_size_x;
+  occupancy_map_->info.height = cells_size_y;
+  occupancy_map_->info.origin.position.x = map_origin.X() - map_size_x_ / 2;
+  occupancy_map_->info.origin.position.y = map_origin.Y() - map_size_y_ / 2;
+  occupancy_map_->info.origin.position.z = map_origin.Z();
+  occupancy_map_->info.origin.orientation.w = 1;
+  
+
+  this->engine = this->world_->Physics();
+  this->engine->InitForThread();
+  std::cout<<"help4"<<this->actor_->GetName() << std::endl;
+  //this one got issue for virtual method of ray
+  this->ray =
+      boost::dynamic_pointer_cast<gazebo::physics::RayShape>(
+        this->engine->CreateShape("ray", this->_collisionPtr));
+  std::cout<<"help5"<<this->actor_->GetName() << std::endl;
+  std::cout << "Starting wavefront expansion for mapping for "<< this->actor_->GetName() << std::endl;
+
+  //identify free space by spreading out from initial robot cell
+  double robot_x = 0;
+  double robot_y = 0;
+  //find initial robot cell
+  unsigned int cell_x, cell_y, map_index;
+  world2cell(robot_x, robot_y, map_size_x_, map_size_y_, map_resolution_,
+             cell_x, cell_y);
+
+  if(!cell2index(cell_x, cell_y, cells_size_x, cells_size_y, map_index))
+  {
+    ROS_ERROR_NAMED(name_, "initial robot pos is outside map, could not create "
+                           "map");
+    return;
+  }
+  
+  std::vector<unsigned int> wavefront;
+  wavefront.push_back(map_index);
+  
+  std::vector<std::uint_least32_t> map1; 
+  map1.resize(cells_size_x * cells_size_y);
+  std::fill(map1.begin(), map1.end(), 0);
+  //wavefront expansion for identifying free, unknown and occupied cells
+  double max_height = 1.5;
+  
+  for(double m = 0; m< max_height; m+=0.20)
+  {
+    
+    while(!wavefront.empty())
+    {
+      
+      map_index = wavefront.at(0);
+      wavefront.erase(wavefront.begin());
+
+      index2cell(map_index, cells_size_x, cells_size_y, cell_x, cell_y);
+
+      //mark cell as free
+      occupancy_map_->data.at(map_index) = 0;
+
+      //explore cells neighbors in an 8-connected grid
+      unsigned int child_index;
+      double world_x, world_y;
+      uint8_t child_val;
+
+      //8-connected grid
+      for(int i=-1; i<2; i++)
+      {
+        for(int j=-1; j<2; j++)
+        {
+          //makes sure index is inside map bounds
+          if(cell2index(cell_x + i, cell_y + j, cells_size_x, cells_size_y, child_index))
+          {
+            child_val = occupancy_map_->data.at(child_index);
+
+            //only update value if cell is unknown
+            if(child_val != 100 && child_val != 0 && child_val != 50)
+            {
+              cell2world(cell_x + i, cell_y + j, map_size_x_, map_size_y_, map_resolution_,
+                        world_x, world_y);
+              
+              bool cell_occupied = worldCellIntersection(ignition::math::Vector3d(world_x, world_y, m),
+                                                        map_resolution_,this->ray);
+
+              if(cell_occupied)
+                //mark cell as occupied
+                occupancy_map_->data.at(child_index) = 100;
+                
+
+
+              else
+              {
+                //add cell to wavefront
+                wavefront.push_back(child_index);
+                //mark wavefront in map so we don't add children to wavefront multiple
+                //times
+                occupancy_map_->data.at(child_index) = 0;
+                
+                
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    wavefront.clear();
+    wavefront.push_back(map_index);
+    for(int i = 0; i < map1.size();i++){
+
+      if (map1[i] == 100 || occupancy_map_->data.at(i) == 100)
+      {
+        map1[i] = 100;
+      }
+
+    }
+    std::fill(occupancy_map_->data.begin(), occupancy_map_->data.end(), -1);
+  }
+
+  for(int i =0;i < cells_size_x * cells_size_y; i ++)
+  {
+    occupancy_map_->data.at(i) = map1[i];
+  }
+
+  this->world_->SetPhysicsEnabled(true);
+  this->map_pub_.publish(*this->occupancy_map_);
+  
+  std::cout << "Occupancy Map generation completed for " << this->actor_->GetName() << std::endl;
+
+  
 }
 
 bool OccupancyMapFromWorld::worldCellIntersection(const ignition::math::Vector3d& cell_center,
                                                   const double cell_length,
-                                                  gazebo::physics::RayShapePtr ray)
+                                                  gazebo::physics::RayShapePtr &ray)
 {
   //check for collisions with rays surrounding the cell
   //    ---
@@ -321,144 +519,12 @@ bool OccupancyMapFromWorld::index2cell(int index, unsigned int cell_size_x,
   }
 }
 
-void OccupancyMapFromWorld::CreateOccupancyMap()
-{
+// void OccupancyMapFromWorld::OnUpdate(const common::UpdateInfo &_info)
+// {
 
-  //TODO map origin different from (0,0)
-  ignition::math::Vector3d map_origin(0,0,map_height_);
-
-  unsigned int cells_size_x = map_size_x_ / map_resolution_;
-  unsigned int cells_size_y = map_size_y_ / map_resolution_;
-
-  occupancy_map_ = new nav_msgs::OccupancyGrid();
-  occupancy_map_->data.resize(cells_size_x * cells_size_y);
-  //all cells are initially unknown
-  std::fill(occupancy_map_->data.begin(), occupancy_map_->data.end(), -1);
-  occupancy_map_->header.stamp = ros::Time::now();
-  occupancy_map_->header.frame_id = "map"; //TODO map frame
-  occupancy_map_->info.map_load_time = ros::Time(0);
-  occupancy_map_->info.resolution = map_resolution_;
-  occupancy_map_->info.width = cells_size_x;
-  occupancy_map_->info.height = cells_size_y;
-  occupancy_map_->info.origin.position.x = map_origin.X() - map_size_x_ / 2;
-  occupancy_map_->info.origin.position.y = map_origin.Y() - map_size_y_ / 2;
-  occupancy_map_->info.origin.position.z = map_origin.Z();
-  occupancy_map_->info.origin.orientation.w = 1;
   
-  gazebo::physics::PhysicsEnginePtr engine = world_->Physics();
-  engine->InitForThread();
-  gazebo::physics::RayShapePtr ray =
-      boost::dynamic_pointer_cast<gazebo::physics::RayShape>(
-        engine->CreateShape("ray", gazebo::physics::CollisionPtr()));
 
-  std::cout << "Starting wavefront expansion for mapping" << std::endl;
-
-  //identify free space by spreading out from initial robot cell
-  double robot_x = 0;
-  double robot_y = 0;
-
-  //find initial robot cell
-  unsigned int cell_x, cell_y, map_index;
-  world2cell(robot_x, robot_y, map_size_x_, map_size_y_, map_resolution_,
-             cell_x, cell_y);
-
-  if(!cell2index(cell_x, cell_y, cells_size_x, cells_size_y, map_index))
-  {
-    ROS_ERROR_NAMED(name_, "initial robot pos is outside map, could not create "
-                           "map");
-    return;
-  }
-
-  std::vector<unsigned int> wavefront;
-  wavefront.push_back(map_index);
-
-  std::vector<std::uint_least32_t> map1; 
-  map1.resize(cells_size_x * cells_size_y);
-  std::fill(map1.begin(), map1.end(), 0);
-  //wavefront expansion for identifying free, unknown and occupied cells
-  double max_height = 1.5;
-  for(double m = 0; m< max_height; m+=0.20)
-  {
-    
-    while(!wavefront.empty())
-    {
-      
-      map_index = wavefront.at(0);
-      wavefront.erase(wavefront.begin());
-
-      index2cell(map_index, cells_size_x, cells_size_y, cell_x, cell_y);
-
-      //mark cell as free
-      occupancy_map_->data.at(map_index) = 0;
-
-      //explore cells neighbors in an 8-connected grid
-      unsigned int child_index;
-      double world_x, world_y;
-      uint8_t child_val;
-
-      //8-connected grid
-      for(int i=-1; i<2; i++)
-      {
-        for(int j=-1; j<2; j++)
-        {
-          //makes sure index is inside map bounds
-          if(cell2index(cell_x + i, cell_y + j, cells_size_x, cells_size_y, child_index))
-          {
-            child_val = occupancy_map_->data.at(child_index);
-
-            //only update value if cell is unknown
-            if(child_val != 100 && child_val != 0 && child_val != 50)
-            {
-              cell2world(cell_x + i, cell_y + j, map_size_x_, map_size_y_, map_resolution_,
-                        world_x, world_y);
-
-              bool cell_occupied = worldCellIntersection(ignition::math::Vector3d(world_x, world_y, m),
-                                                        map_resolution_, ray);
-
-              if(cell_occupied)
-                //mark cell as occupied
-                occupancy_map_->data.at(child_index) = 100;
-                
-
-
-              else
-              {
-                //add cell to wavefront
-                wavefront.push_back(child_index);
-                //mark wavefront in map so we don't add children to wavefront multiple
-                //times
-                occupancy_map_->data.at(child_index) = 0;
-                
-                
-              }
-            }
-          }
-        }
-      }
-    }
-    wavefront.clear();
-    wavefront.push_back(map_index);
-    for(int i = 0; i < map1.size();i++){
-
-      if (map1[i] == 100 || occupancy_map_->data.at(i) == 100)
-      {
-        map1[i] = 100;
-      }
-
-    }
-    std::fill(occupancy_map_->data.begin(), occupancy_map_->data.end(), -1);
-  }
-
-  for(int i =0;i < cells_size_x * cells_size_y; i ++)
-  {
-    occupancy_map_->data.at(i) = map1[i];
-  }
-
-
-  map_pub_.publish(*occupancy_map_);
-  std::cout << "\rOccupancy Map generation completed                  " << std::endl;
-
-}
+// }
 
 //not needed since its now a model pluggin
 // // Register this plugin with the simulator

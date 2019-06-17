@@ -37,6 +37,7 @@
 #include <thread>
 #include "ros/subscribe_options.h"
 #include <tf/transform_broadcaster.h>
+#include <nav_msgs/Odometry.h>
 
 
 namespace gazebo
@@ -132,6 +133,11 @@ namespace gazebo
     };
     std::vector<path_coordinates> global_path; 
     double updateRate;
+    // //publish for animated_box_odom
+    // std::string published_odom;
+    // ros::Publisher map_pub_;
+    // ros::NodeHandle nh_;
+    // nav_msgs::Odometry odom_actor;
   };
 }
 #endif

@@ -28,9 +28,10 @@
   <arg name="ns_animated0" value="animated_box0"/>
   <group ns ="$(arg ns_animated0)">
     <node name="move_base" pkg="move_base" type="move_base" output="screen">
-
-    <!-- <param name="base_link" value="chassis1"> -->
-    <rosparam file="$(find visionbot_gazebo)/include/move_base_config.yaml" command="load" />
+      <rosparam file="$(find visionbot_gazebo)/include/move_base_config.yaml" command="load" />
+      <param name="global_costmap/robot_base_frame" value = "$(arg ns_animated0)_odom"/>
+      <!-- <remap from="odom" to="$(arg ns_animated0)_odom"/> -->
+    <!-- <param name="base_link" value="chassis"> -->
     <!-- <remap from="map" to="animated_box0/map"/> -->
     <!-- <remap from="base_scan" to="visionbot/laser/scan"/>
     <param name="move_base/DWAPlannerROS/yaw_goal_tolerance" value="1.0"/>
@@ -38,12 +39,13 @@
     </node>
   </group>
 
-  <arg name="ns_animated1" value="animated_box1"/>
+  <!-- <arg name="ns_animated1" value="animated_box1"/>
   <group ns ="$(arg ns_animated1)">
     <node name="move_base" pkg="move_base" type="move_base" output="screen">
-    <rosparam file="$(find visionbot_gazebo)/include/move_base_config.yaml" command="load" />
+      <rosparam file="$(find visionbot_gazebo)/include/move_base_config.yaml" command="load" />
+      <param name="global_costmap/robot_base_frame" value = "$(arg ns_animated1)_odom"/>
     </node>
-  </group>
+  </group> -->
 
 
 </launch>
