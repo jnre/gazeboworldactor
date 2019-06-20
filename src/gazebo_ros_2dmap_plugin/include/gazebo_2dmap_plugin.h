@@ -114,7 +114,7 @@ class OccupancyMapFromWorld : public ModelPlugin {
   double map_size_y_;
   std::thread mapping_thread;
   void MappingThread();
-  boost::mutex lock_;
+  
   /// \brief List of models to ignore. Used for vector field
   private: std::vector<std::string> ignoreModels;
   std::string published_mapname;

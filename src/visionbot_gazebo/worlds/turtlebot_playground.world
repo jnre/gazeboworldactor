@@ -151,12 +151,13 @@
       </animation>
     </actor>
 
-    <!-- <model name ="animated_box1">
+    <actor name ="animated_box3">
+      <pose>0 0 0 1.57 0 0</pose>
       <skin>
         <filename>/home/joseph/mybot_ws/visionbot_description/meshes/lizv2.dae</filename>
       </skin>
-    </model>
-     <model name="liz">
+    </actor>
+     <!-- <model name="liz">
       <pose>0 0 0 1.57 0 0</pose>
       <static>true</static>
       <link name="body">
@@ -164,7 +165,7 @@
           <geometry>
             <mesh><uri>file://lizv2.dae</uri></mesh>
 	    <mesh><uri>file://liz.dae</uri></mesh>
-	    <mesh><uri>stand.dae</uri></mesh
+	    <mesh><uri>stand.dae</uri></mesh>
           </geometry>
 	
         </visual>

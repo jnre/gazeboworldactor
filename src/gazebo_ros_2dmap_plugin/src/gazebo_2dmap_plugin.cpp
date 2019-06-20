@@ -25,7 +25,7 @@
 #include <ignition/math/Vector3.hh>
 
 
-
+std::mutex mtx;
 namespace gazebo {
 
 GZ_REGISTER_MODEL_PLUGIN(OccupancyMapFromWorld)
@@ -270,7 +270,7 @@ void OccupancyMapFromWorld::MappingThread(){
 // }
 void OccupancyMapFromWorld::CreateOccupancyMap(){
   //TODO map origin different from (0,0)
-  
+  std::unique_lock<std::mutex> lck (mtx);
   ignition::math::Vector3d map_origin(0,0,map_height_);
 
   unsigned int cells_size_x = map_size_x_ / map_resolution_;
@@ -294,12 +294,10 @@ void OccupancyMapFromWorld::CreateOccupancyMap(){
 
   this->engine = this->world_->Physics();
   this->engine->InitForThread();
-  std::cout<<"help4"<<this->actor_->GetName() << std::endl;
   //this one got issue for virtual method of ray
   this->ray =
       boost::dynamic_pointer_cast<gazebo::physics::RayShape>(
         this->engine->CreateShape("ray", this->_collisionPtr));
-  std::cout<<"help5"<<this->actor_->GetName() << std::endl;
   std::cout << "Starting wavefront expansion for mapping for "<< this->actor_->GetName() << std::endl;
 
   //identify free space by spreading out from initial robot cell
