@@ -291,7 +291,7 @@ void OccupancyMapFromWorld::CreateOccupancyMap(){
   occupancy_map_->info.origin.position.z = map_origin.Z();
   occupancy_map_->info.origin.orientation.w = 1;
   
-
+  
   this->engine = this->world_->Physics();
   this->engine->InitForThread();
   //this one got issue for virtual method of ray

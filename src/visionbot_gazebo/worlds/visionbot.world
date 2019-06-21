@@ -8,15 +8,8 @@
          <uri>model://sun</uri>
       </include>
 
-      <plugin name='gazebo_occupancy_map' filename='libgazebo_2dmap_plugin.so'>
-        <map_resolution>0.1</map_resolution> <!-- in meters, optional, default 0.1 -->
-        <map_height>0.3</map_height>         <!-- in meters, optional, default 0.3 -->
-        <map_size_x>10</map_size_x>          <!-- in meters, optional, default 10 -->
-        <map_size_y>10</map_size_y>          <!-- in meters, optional, default 10 -->
-      </plugin>
-
       <actor name="animated_box0">
-        <!-- <pose> 3 1 1.2138 1.5707 0 0 </pose> -->
+        <pose> 3 1 1.2138 1.5707 0 0 </pose>
         <skin>
           <filename>walk.dae</filename>
         </skin>    
@@ -24,20 +17,7 @@
           <filename>walk.dae</filename>
           <interpolate_x>true</interpolate_x>
         </animation>  
-         <!-- <script>
-          <loop>false</loop>
-          <auto_start>true</auto_start>
-            <trajectory id="0" type="walking">
-              <waypoint>
-                <time>0.0</time>
-                <pose>0 1 0 0 0 0</pose>
-              </waypoint>
-              <waypoint>
-                <time>1.0</time>
-                <pose>0 2 0 0 0 0</pose>
-              </waypoint> 
-            </trajectory>
-          </script> -->
+
         <plugin name="EditedActor" filename="libEditedActorPlugin.so">
         </plugin>
         <plugin name="CollisionPlugin" filename="libActorCollisionsPlugin.so">
@@ -143,24 +123,6 @@
             3.0
           "/> 
         </plugin>
-        
-        
-             <!-- <waypoint>
-                <time>1.0</time>
-                <pose>1 0 0 0 0 -1.57</pose>
-             </waypoint> -->
-             <!-- <waypoint>
-                <time>2.0</time>
-                <pose>0 -1 0 0 0 -3.14</pose>
-             </waypoint>
-             <waypoint>
-                <time>3.0</time>
-                <pose>-1 0 0 0 0 -4.71</pose>
-             </waypoint>
-             <waypoint>
-                <time>4.0</time>
-                <pose>0 1 0 0 0 -6.28 </pose>
-             </waypoint> --> 
           
         
       </actor>
